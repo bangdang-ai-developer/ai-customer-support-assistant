@@ -1,0 +1,224 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Users and authentication
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  image       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  lastActive  DateTime @default(now()) @map("last_active")
+
+  // Relationships
+  sessions      Session[]
+  conversations Conversation[]
+  feedback      MessageFeedback[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Conversations and messages
+model Conversation {
+  id           String            @id @default(cuid())
+  userId       String?           @map("user_id")
+  scenarioType ScenarioType      @map("scenario_type")
+  status       ConversationStatus @default(ACTIVE)
+  title        String?
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  // Relationships
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages Message[]
+  metrics  ConversationMetrics[]
+  satisfaction UserSatisfaction[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String      @map("conversation_id")
+  role           MessageRole
+  content        String
+  metadata       Json?       @default("{}")
+  timestamp      DateTime    @default(now())
+  tokensUsed     Int?        @map("tokens_used")
+  responseTime   Int?        @map("response_time") // milliseconds
+
+  // Relationships
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  feedback     MessageFeedback[]
+
+  @@map("messages")
+}
+
+model MessageFeedback {
+  id        String         @id @default(cuid())
+  messageId String         @map("message_id")
+  userId    String?        @map("user_id")
+  rating    FeedbackRating
+  comment   String?
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  // Relationships
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("message_feedback")
+}
+
+// Knowledge base and embeddings
+model KnowledgeArticle {
+  id           String       @id @default(cuid())
+  scenarioType ScenarioType @map("scenario_type")
+  title        String
+  content      String
+  embeddingId  String?      @map("embedding_id")
+  tags         String[]     @default([])
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  // Relationships
+  embedding EmbeddingVector? @relation(fields: [embeddingId], references: [id])
+
+  @@map("knowledge_articles")
+}
+
+model EmbeddingVector {
+  id          String   @id @default(cuid())
+  contentHash String   @unique @map("content_hash")
+  vector      Float[]  @default([])
+  dimensions  Int      @default(1536)
+  metadata    Json?    @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  articles KnowledgeArticle[]
+
+  @@map("embedding_vectors")
+}
+
+// Analytics and telemetry
+model ConversationMetrics {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  responseTime   Int      @map("response_time") // average response time in ms
+  tokensUsed     Int      @map("tokens_used")
+  messageCount   Int      @map("message_count")
+  duration       Int?     @map("duration") // conversation duration in seconds
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_metrics")
+}
+
+model UserSatisfaction {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  score          Int      @db.SmallInt // 1-5 scale
+  feedback       String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("user_satisfaction")
+}
+
+model SystemMetrics {
+  id           String   @id @default(cuid())
+  endpoint     String
+  method       String
+  responseTime Int      @map("response_time")
+  statusCode   Int      @map("status_code")
+  errorCount   Int      @default(0) @map("error_count")
+  timestamp    DateTime @default(now())
+
+  @@map("system_metrics")
+}
+
+// Background jobs
+model BackgroundJob {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3) @map("max_attempts")
+  error       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  processedAt DateTime? @map("processed_at")
+
+  @@map("background_jobs")
+}
+
+// Enums
+enum ScenarioType {
+  ECOMMERCE
+  SAAS
+  SERVICE_BUSINESS
+
+  @@map("scenario_type")
+}
+
+enum ConversationStatus {
+  ACTIVE
+  COMPLETED
+  ESCALATED
+  ARCHIVED
+
+  @@map("conversation_status")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+
+  @@map("message_role")
+}
+
+enum FeedbackRating {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+
+  @@map("feedback_rating")
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+
+  @@map("job_status")
+}
