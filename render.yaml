@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: biwoco-ai-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: "/health"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_AI_API_KEY
+        sync: false
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: '["*"]'
+      - key: SECRET_KEY
+        sync: false
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PORT
+        fromService:
+          type: web
+          name: biwoco-ai-backend
+          property: port
+
+# Database will be hosted on Railway PostgreSQL - no local database needed
