@@ -8,6 +8,8 @@ services:
     startCommand: "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: "/health"
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: DATABASE_URL
         sync: false
       - key: GOOGLE_AI_API_KEY
@@ -20,12 +22,5 @@ services:
         value: '["*"]'
       - key: SECRET_KEY
         sync: false
-      - key: HOST
-        value: "0.0.0.0"
-      - key: PORT
-        fromService:
-          type: web
-          name: biwoco-ai-backend
-          property: port
 
 # Database will be hosted on Railway PostgreSQL - no local database needed
